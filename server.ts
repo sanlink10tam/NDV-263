@@ -11,22 +11,20 @@ let db: admin.firestore.Firestore | null = null;
 let firebaseStatus = "DISCONNECTED";
 
 try {
+  console.log("Initializing Firebase...");
   const projectId = process.env.FIREBASE_PROJECT_ID;
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
   let privateKey = process.env.FIREBASE_PRIVATE_KEY;
 
   if (projectId && clientEmail && privateKey) {
     try {
-      // Robust Private Key processing
       privateKey = privateKey.trim();
-      // Remove wrapping quotes if the user pasted them
       if (privateKey.startsWith('"') && privateKey.endsWith('"')) {
         privateKey = privateKey.substring(1, privateKey.length - 1);
       }
       if (privateKey.startsWith("'") && privateKey.endsWith("'")) {
         privateKey = privateKey.substring(1, privateKey.length - 1);
       }
-      // Replace literal \n with actual newlines
       privateKey = privateKey.replace(/\\n/g, '\n');
 
       if (!admin.apps.length) {
@@ -37,13 +35,14 @@ try {
             privateKey,
           }),
         });
+        console.log("Firebase App initialized");
       }
       db = admin.firestore();
       firebaseStatus = "CONNECTED";
-      console.log("Firebase initialized successfully");
+      console.log("Firestore connected successfully");
     } catch (error: any) {
       const errMsg = error.message || "Unknown error during SDK init";
-      console.error("Error initializing Firebase SDK:", errMsg);
+      console.error("Firebase Init Error:", errMsg);
       firebaseStatus = `ERROR: ${errMsg}`;
     }
   } else {
@@ -52,13 +51,12 @@ try {
     if (!clientEmail) missing.push("CLIENT_EMAIL");
     if (!privateKey) missing.push("PRIVATE_KEY");
     
-    console.warn(`Firebase credentials missing: ${missing.join(", ")}. Falling back to local data.json`);
+    console.warn(`Firebase credentials missing: ${missing.join(", ")}`);
     firebaseStatus = missing.length > 0 ? `MISSING: ${missing.join(", ")}` : "LOCAL_ONLY";
   }
 } catch (error: any) {
-  const errMsg = error.message || "Critical error in setup block";
-  console.error("Critical error in Firebase setup block:", errMsg);
-  firebaseStatus = `CRITICAL_ERROR: ${errMsg}`;
+  console.error("Critical Firebase Setup Error:", error.message);
+  firebaseStatus = `CRITICAL_ERROR: ${error.message}`;
 }
 
 const DATA_FILE = path.join(process.cwd(), "data.json");
