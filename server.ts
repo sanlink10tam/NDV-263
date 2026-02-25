@@ -13,10 +13,22 @@ let firebaseStatus = "DISCONNECTED";
 try {
   const projectId = process.env.FIREBASE_PROJECT_ID;
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-  const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
+  let privateKey = process.env.FIREBASE_PRIVATE_KEY;
 
   if (projectId && clientEmail && privateKey) {
     try {
+      // Robust Private Key processing
+      privateKey = privateKey.trim();
+      // Remove wrapping quotes if the user pasted them
+      if (privateKey.startsWith('"') && privateKey.endsWith('"')) {
+        privateKey = privateKey.substring(1, privateKey.length - 1);
+      }
+      if (privateKey.startsWith("'") && privateKey.endsWith("'")) {
+        privateKey = privateKey.substring(1, privateKey.length - 1);
+      }
+      // Replace literal \n with actual newlines
+      privateKey = privateKey.replace(/\\n/g, '\n');
+
       if (!admin.apps.length) {
         admin.initializeApp({
           credential: admin.credential.cert({
@@ -30,8 +42,9 @@ try {
       firebaseStatus = "CONNECTED";
       console.log("Firebase initialized successfully");
     } catch (error: any) {
-      console.error("Error initializing Firebase SDK:", error.message);
-      firebaseStatus = `ERROR: ${error.message}`;
+      const errMsg = error.message || "Unknown error during SDK init";
+      console.error("Error initializing Firebase SDK:", errMsg);
+      firebaseStatus = `ERROR: ${errMsg}`;
     }
   } else {
     const missing = [];
@@ -43,8 +56,9 @@ try {
     firebaseStatus = missing.length > 0 ? `MISSING: ${missing.join(", ")}` : "LOCAL_ONLY";
   }
 } catch (error: any) {
-  console.error("Critical error in Firebase setup block:", error.message);
-  firebaseStatus = `CRITICAL_ERROR: ${error.message}`;
+  const errMsg = error.message || "Critical error in setup block";
+  console.error("Critical error in Firebase setup block:", errMsg);
+  firebaseStatus = `CRITICAL_ERROR: ${errMsg}`;
 }
 
 const DATA_FILE = path.join(process.cwd(), "data.json");
@@ -166,79 +180,119 @@ async function startServer() {
     try {
       const data = await readData();
       res.json(data);
-    } catch (e) {
-      console.error("Lỗi trong /api/data:", e);
-      res.status(500).json({ error: "Internal Server Error" });
+    } catch (e: any) {
+      console.error("Lỗi trong /api/data:", e.message);
+      res.status(500).json({ error: "Internal Server Error", details: e.message });
     }
   });
 
   app.post("/api/users", async (req, res) => {
     try {
       const incomingUsers = req.body;
+      if (!Array.isArray(incomingUsers)) {
+        return res.status(400).json({ error: "Invalid data format: expected array" });
+      }
+
       if (db) {
-        const batch = db.batch();
-        incomingUsers.forEach((u: any) => {
-          const ref = db!.collection("users").doc(u.id);
-          batch.set(ref, u, { merge: true });
-        });
-        await batch.commit();
+        // Firestore batch limit is 500 operations
+        const chunks = [];
+        for (let i = 0; i < incomingUsers.length; i += 400) {
+          chunks.push(incomingUsers.slice(i, i + 400));
+        }
+
+        for (const chunk of chunks) {
+          const batch = db.batch();
+          chunk.forEach((u: any) => {
+            if (u.id) {
+              const ref = db!.collection("users").doc(u.id);
+              batch.set(ref, u, { merge: true });
+            }
+          });
+          await batch.commit();
+        }
       } else {
         const data = await readData();
         const userMap = new Map(data.users.map((u: any) => [u.id, u]));
         incomingUsers.forEach((u: any) => {
-          userMap.set(u.id, u);
+          if (u.id) userMap.set(u.id, u);
         });
         data.users = Array.from(userMap.values());
         await writeData(data);
       }
       res.json({ success: true });
-    } catch (e) {
-      console.error("Error in /api/users:", e);
-      res.status(500).json({ error: "Internal Server Error" });
+    } catch (e: any) {
+      console.error("Error in /api/users:", e.message);
+      res.status(500).json({ error: "Internal Server Error", details: e.message });
     }
   });
 
   app.post("/api/loans", async (req, res) => {
     try {
       const incomingLoans = req.body;
+      if (!Array.isArray(incomingLoans)) {
+        return res.status(400).json({ error: "Invalid data format: expected array" });
+      }
+
       if (db) {
-        const batch = db.batch();
-        incomingLoans.forEach((l: any) => {
-          const ref = db!.collection("loans").doc(l.id);
-          batch.set(ref, l, { merge: true });
-        });
-        await batch.commit();
+        const chunks = [];
+        for (let i = 0; i < incomingLoans.length; i += 400) {
+          chunks.push(incomingLoans.slice(i, i + 400));
+        }
+
+        for (const chunk of chunks) {
+          const batch = db.batch();
+          chunk.forEach((l: any) => {
+            if (l.id) {
+              const ref = db!.collection("loans").doc(l.id);
+              batch.set(ref, l, { merge: true });
+            }
+          });
+          await batch.commit();
+        }
       } else {
         const data = await readData();
         const loanMap = new Map(data.loans.map((l: any) => [l.id, l]));
         incomingLoans.forEach((l: any) => {
-          loanMap.set(l.id, l);
+          if (l.id) loanMap.set(l.id, l);
         });
         data.loans = Array.from(loanMap.values());
         await writeData(data);
       }
       res.json({ success: true });
-    } catch (e) {
-      console.error("Error in /api/loans:", e);
-      res.status(500).json({ error: "Internal Server Error" });
+    } catch (e: any) {
+      console.error("Error in /api/loans:", e.message);
+      res.status(500).json({ error: "Internal Server Error", details: e.message });
     }
   });
 
   app.post("/api/notifications", async (req, res) => {
     try {
       const incomingNotifs = req.body;
+      if (!Array.isArray(incomingNotifs)) {
+        return res.status(400).json({ error: "Invalid data format: expected array" });
+      }
+
       if (db) {
-        const batch = db.batch();
-        incomingNotifs.forEach((n: any) => {
-          const ref = db!.collection("notifications").doc(n.id);
-          batch.set(ref, n, { merge: true });
-        });
-        await batch.commit();
+        const chunks = [];
+        for (let i = 0; i < incomingNotifs.length; i += 400) {
+          chunks.push(incomingNotifs.slice(i, i + 400));
+        }
+
+        for (const chunk of chunks) {
+          const batch = db.batch();
+          chunk.forEach((n: any) => {
+            if (n.id) {
+              const ref = db!.collection("notifications").doc(n.id);
+              batch.set(ref, n, { merge: true });
+            }
+          });
+          await batch.commit();
+        }
       } else {
         const data = await readData();
         const notifMap = new Map(data.notifications.map((n: any) => [n.id, n]));
         incomingNotifs.forEach((n: any) => {
-          notifMap.set(n.id, n);
+          if (n.id) notifMap.set(n.id, n);
         });
         data.notifications = Array.from(notifMap.values())
           .sort((a: any, b: any) => b.id.localeCompare(a.id))
@@ -246,9 +300,9 @@ async function startServer() {
         await writeData(data);
       }
       res.json({ success: true });
-    } catch (e) {
-      console.error("Error in /api/notifications:", e);
-      res.status(500).json({ error: "Internal Server Error" });
+    } catch (e: any) {
+      console.error("Error in /api/notifications:", e.message);
+      res.status(500).json({ error: "Internal Server Error", details: e.message });
     }
   });
 
@@ -336,6 +390,12 @@ async function startServer() {
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
+  });
+
+  // Global error handler
+  app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+    console.error("Unhandled error:", err);
+    res.status(500).json({ error: "Internal Server Error", details: err.message });
   });
 }
 

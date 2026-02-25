@@ -277,37 +277,28 @@ const App: React.FC = () => {
       localStorage.setItem('vnv_user', user ? JSON.stringify(user) : '');
       
       try {
-        await fetch('/api/users', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(registeredUsers)
-        });
-        
-        await fetch('/api/loans', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(loans)
-        });
-        
-        await fetch('/api/notifications', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(notifications)
-        });
-        
-        await fetch('/api/budget', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ budget: systemBudget })
-        });
-        
-        await fetch('/api/rankProfit', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ rankProfit })
-        });
-      } catch (e) {
-        console.error("Lỗi khi lưu dữ liệu lên server:", e);
+        const endpoints = [
+          { url: '/api/users', body: registeredUsers },
+          { url: '/api/loans', body: loans },
+          { url: '/api/notifications', body: notifications },
+          { url: '/api/budget', body: { budget: systemBudget } },
+          { url: '/api/rankProfit', body: { rankProfit } }
+        ];
+
+        for (const endpoint of endpoints) {
+          const response = await fetch(endpoint.url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(endpoint.body)
+          });
+          
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(`Failed to save to ${endpoint.url}: ${response.status} ${errorData.details || ''}`);
+          }
+        }
+      } catch (e: any) {
+        console.error("Lỗi khi lưu dữ liệu lên server:", e.message || e);
       }
     };
     const timer = setTimeout(persist, 2000);
