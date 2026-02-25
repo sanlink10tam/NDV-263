@@ -62,16 +62,21 @@ try {
 }
 
 const DATA_FILE = path.join(process.cwd(), "data.json");
+const isVercel = process.env.VERCEL === "1";
 
-// Initialize data file if it doesn't exist (for fallback)
-if (!fs.existsSync(DATA_FILE)) {
-  fs.writeFileSync(DATA_FILE, JSON.stringify({
-    users: [],
-    loans: [],
-    notifications: [],
-    budget: 30000000,
-    rankProfit: 0
-  }, null, 2));
+// Initialize data file if it doesn't exist (only if NOT on Vercel)
+if (!isVercel && !fs.existsSync(DATA_FILE)) {
+  try {
+    fs.writeFileSync(DATA_FILE, JSON.stringify({
+      users: [],
+      loans: [],
+      notifications: [],
+      budget: 30000000,
+      rankProfit: 0
+    }, null, 2));
+  } catch (e) {
+    console.warn("Could not create local data.json:", e);
+  }
 }
 
 async function readData() {
@@ -135,7 +140,13 @@ async function writeData(data: any) {
       console.error("Error writing to Firebase:", e);
     }
   }
-  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
+  if (!isVercel) {
+    try {
+      fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
+    } catch (e) {
+      console.error("Error writing to local file:", e);
+    }
+  }
 }
 
 const app = express();
@@ -368,7 +379,6 @@ app.use((req, res, next) => {
 
 // Vite middleware for development
 const distPath = path.join(process.cwd(), "dist");
-const isVercel = process.env.VERCEL === "1";
 
 if (!isVercel && process.env.NODE_ENV !== "production") {
   console.log("Using Vite middleware");
