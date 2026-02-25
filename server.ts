@@ -16,25 +16,35 @@ try {
   const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
 
   if (projectId && clientEmail && privateKey) {
-    if (!admin.apps.length) {
-      admin.initializeApp({
-        credential: admin.credential.cert({
-          projectId,
-          clientEmail,
-          privateKey,
-        }),
-      });
+    try {
+      if (!admin.apps.length) {
+        admin.initializeApp({
+          credential: admin.credential.cert({
+            projectId,
+            clientEmail,
+            privateKey,
+          }),
+        });
+      }
+      db = admin.firestore();
+      firebaseStatus = "CONNECTED";
+      console.log("Firebase initialized successfully");
+    } catch (error: any) {
+      console.error("Error initializing Firebase SDK:", error.message);
+      firebaseStatus = `ERROR: ${error.message}`;
     }
-    db = admin.firestore();
-    firebaseStatus = "CONNECTED";
-    console.log("Firebase initialized successfully");
   } else {
-    console.warn("Firebase credentials missing. Falling back to local data.json");
-    firebaseStatus = "LOCAL_ONLY";
+    const missing = [];
+    if (!projectId) missing.push("PROJECT_ID");
+    if (!clientEmail) missing.push("CLIENT_EMAIL");
+    if (!privateKey) missing.push("PRIVATE_KEY");
+    
+    console.warn(`Firebase credentials missing: ${missing.join(", ")}. Falling back to local data.json`);
+    firebaseStatus = missing.length > 0 ? `MISSING: ${missing.join(", ")}` : "LOCAL_ONLY";
   }
-} catch (error) {
-  console.error("Error initializing Firebase:", error);
-  firebaseStatus = "ERROR";
+} catch (error: any) {
+  console.error("Critical error in Firebase setup block:", error.message);
+  firebaseStatus = `CRITICAL_ERROR: ${error.message}`;
 }
 
 const DATA_FILE = path.join(process.cwd(), "data.json");
@@ -136,6 +146,19 @@ async function startServer() {
   // Firebase status
   app.get("/api/firebase-status", (req, res) => {
     res.json({ status: firebaseStatus });
+  });
+
+  // Test DB connection
+  app.get("/test-db", async (req, res) => {
+    try {
+      if (!db) {
+        return res.json({ status: "ERROR", error: "Firebase not initialized (db is null)" });
+      }
+      const snapshot = await db.collection("test").get();
+      res.json({ status: "OK", count: snapshot.size });
+    } catch (error: any) {
+      res.json({ status: "ERROR", error: error.message });
+    }
   });
 
   // API Routes
