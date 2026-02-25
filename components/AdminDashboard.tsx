@@ -96,15 +96,19 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, loans, registered
               <div className="flex items-center gap-1.5 border-l border-white/10 pl-3">
                 <Database size={10} className={
                   firebaseStatus === 'CONNECTED' ? 'text-blue-500' : 
-                  firebaseStatus === 'LOCAL_ONLY' ? 'text-yellow-500' : 'text-red-500'
+                  firebaseStatus === 'LOCAL_ONLY' ? 'text-yellow-500' : 
+                  firebaseStatus.startsWith('MISSING') ? 'text-orange-500' : 'text-red-500'
                 } />
                 <span className={`text-[8px] font-black uppercase tracking-[0.2em] ${
                   firebaseStatus === 'CONNECTED' ? 'text-blue-500' : 
-                  firebaseStatus === 'LOCAL_ONLY' ? 'text-yellow-500' : 'text-red-500'
+                  firebaseStatus === 'LOCAL_ONLY' ? 'text-yellow-500' : 
+                  firebaseStatus.startsWith('MISSING') ? 'text-orange-500' : 'text-red-500'
                 }`}>
-                  {firebaseStatus === 'CONNECTED' ? 'Firebase: OK' : 
-                   firebaseStatus === 'LOCAL_ONLY' ? 'Database: Local' : 
-                   firebaseStatus === 'CHECKING' ? 'Database: Checking...' : 'Database: Error'}
+                  {firebaseStatus === 'CONNECTED' ? 'Firebase: Connected' : 
+                   firebaseStatus === 'LOCAL_ONLY' ? 'Database: Local (data.json)' : 
+                   firebaseStatus === 'CHECKING' ? 'Database: Checking...' : 
+                   firebaseStatus.startsWith('MISSING') ? `Config ${firebaseStatus}` : 
+                   `Error: ${firebaseStatus}`}
                 </span>
               </div>
             </div>
@@ -123,6 +127,30 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, loans, registered
           <div>
             <p className="text-[10px] font-black text-red-600 uppercase tracking-widest leading-none mb-1.5">Ngân sách cạn kiệt</p>
             <p className="text-[9px] font-bold text-gray-400 uppercase tracking-tighter">Nguồn vốn khả dụng đang ở mức báo động (≤ 2.000.000 đ).</p>
+          </div>
+        </div>
+      )}
+
+      {firebaseStatus !== 'CONNECTED' && firebaseStatus !== 'CHECKING' && (
+        <div className={`border rounded-[2rem] p-5 flex flex-col items-center text-center gap-3 shadow-lg ${
+          firebaseStatus === 'LOCAL_ONLY' ? 'bg-yellow-600/10 border-yellow-600/30 shadow-yellow-950/10' : 'bg-orange-600/10 border-orange-600/30 shadow-orange-950/10'
+        }`}>
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-lg ${
+            firebaseStatus === 'LOCAL_ONLY' ? 'bg-yellow-600' : 'bg-orange-600'
+          }`}>
+            <Database size={20} className="text-white" />
+          </div>
+          <div>
+            <p className={`text-[10px] font-black uppercase tracking-widest leading-none mb-1.5 ${
+              firebaseStatus === 'LOCAL_ONLY' ? 'text-yellow-600' : 'text-orange-600'
+            }`}>
+              {firebaseStatus === 'LOCAL_ONLY' ? 'Chế độ lưu trữ cục bộ' : 'Lỗi kết nối Database'}
+            </p>
+            <p className="text-[9px] font-bold text-gray-400 uppercase tracking-tighter">
+              {firebaseStatus === 'LOCAL_ONLY' 
+                ? 'Hệ thống đang lưu dữ liệu tạm thời vào data.json. Vui lòng cấu hình Firebase để đồng bộ hóa.' 
+                : `Chi tiết: ${firebaseStatus}`}
+            </p>
           </div>
         </div>
       )}
