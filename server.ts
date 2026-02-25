@@ -371,7 +371,7 @@ async function startServer() {
 
   // Vite middleware for development
   const distPath = path.join(process.cwd(), "dist");
-  const useVite = process.env.NODE_ENV !== "production" || !fs.existsSync(distPath);
+  const useVite = process.env.NODE_ENV !== "production" && !process.env.VERCEL;
 
   if (useVite) {
     console.log("Using Vite middleware");
@@ -384,19 +384,31 @@ async function startServer() {
     console.log("Serving static files from dist");
     app.use(express.static(distPath));
     app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
+      // On Vercel, the frontend is often served separately, 
+      // but this fallback helps if running as a monolith.
+      if (fs.existsSync(path.join(distPath, "index.html"))) {
+        res.sendFile(path.join(distPath, "index.html"));
+      } else {
+        res.status(404).send("Frontend not built or not found");
+      }
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-  });
+  // Only listen if not running on Vercel
+  if (!process.env.VERCEL) {
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`Server running on http://localhost:${PORT}`);
+    });
+  }
 
   // Global error handler
   app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
     console.error("Unhandled error:", err);
     res.status(500).json({ error: "Internal Server Error", details: err.message });
   });
+
+  return app;
 }
 
-startServer();
+const appPromise = startServer();
+export default appPromise;

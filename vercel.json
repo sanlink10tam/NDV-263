@@ -1,6 +1,12 @@
 {
+  "functions": {
+    "server.ts": {
+      "runtime": "@vercel/node"
+    }
+  },
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/$1" },
+    { "source": "/api/(.*)", "destination": "/server.ts" },
+    { "source": "/test-db", "destination": "/server.ts" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
