@@ -138,19 +138,16 @@ async function writeData(data: any) {
   fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
 }
 
-async function startServer() {
-  const app = express();
-  const PORT = 3000;
+const app = express();
+const PORT = 3000;
 
-  console.log(`Starting server in ${process.env.NODE_ENV || 'development'} mode`);
+app.use(cors());
+app.use(express.json({ limit: '50mb' }));
 
-  app.use((req, res, next) => {
-    console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
-    next();
-  });
-
-  app.use(cors());
-  app.use(express.json({ limit: '50mb' }));
+app.use((req, res, next) => {
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
+  next();
+});
 
   // Health check
   app.get("/health", (req, res) => {
@@ -369,46 +366,40 @@ async function startServer() {
     }
   });
 
-  // Vite middleware for development
-  const distPath = path.join(process.cwd(), "dist");
-  const useVite = process.env.NODE_ENV !== "production" && !process.env.VERCEL;
+// Vite middleware for development
+const distPath = path.join(process.cwd(), "dist");
+const isVercel = process.env.VERCEL === "1";
 
-  if (useVite) {
-    console.log("Using Vite middleware");
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
+if (!isVercel && process.env.NODE_ENV !== "production") {
+  console.log("Using Vite middleware");
+  createViteServer({
+    server: { middlewareMode: true },
+    appType: "spa",
+  }).then(vite => {
     app.use(vite.middlewares);
-  } else {
-    console.log("Serving static files from dist");
-    app.use(express.static(distPath));
-    app.get("*", (req, res) => {
-      // On Vercel, the frontend is often served separately, 
-      // but this fallback helps if running as a monolith.
-      if (fs.existsSync(path.join(distPath, "index.html"))) {
-        res.sendFile(path.join(distPath, "index.html"));
-      } else {
-        res.status(404).send("Frontend not built or not found");
-      }
-    });
-  }
-
-  // Only listen if not running on Vercel
-  if (!process.env.VERCEL) {
     app.listen(PORT, "0.0.0.0", () => {
       console.log(`Server running on http://localhost:${PORT}`);
     });
-  }
-
-  // Global error handler
-  app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-    console.error("Unhandled error:", err);
-    res.status(500).json({ error: "Internal Server Error", details: err.message });
   });
-
-  return app;
+} else if (!isVercel) {
+  console.log("Serving static files from dist");
+  app.use(express.static(distPath));
+  app.get("*", (req, res) => {
+    if (fs.existsSync(path.join(distPath, "index.html"))) {
+      res.sendFile(path.join(distPath, "index.html"));
+    } else {
+      res.status(404).send("Frontend not built");
+    }
+  });
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+  });
 }
 
-const appPromise = startServer();
-export default appPromise;
+// Global error handler
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  console.error("Unhandled error:", err);
+  res.status(500).json({ error: "Internal Server Error", details: err.message });
+});
+
+export default app;
