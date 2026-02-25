@@ -1,0 +1,7 @@
+{
+  "name": "Remix: NDV V126",
+  "description": "NDV V126",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
